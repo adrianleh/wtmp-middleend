@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/adrianleh/WTMP-middleend/command"
 	"log"
 	"net"
 )
@@ -12,10 +13,18 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
 	defer listener.Close()
 
 	accept(listener)
+}
+
+func DialSocketAndSend(path string, message []byte) error {
+	sock, err := net.Dial("unix", path)
+	if err != nil {
+		return err
+	}
+	_, err = sock.Write(message)
+	return err
 }
 
 func server(conn net.Conn) {
@@ -30,7 +39,11 @@ func server(conn net.Conn) {
 		}
 		data = append(data, buf[0:nr]...)
 	}
-	println("Server got:", string(data))
+	frame, err := command.ParseCommandFrame(data)
+	err = command.Handle(frame)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func accept(listener net.Listener) {
