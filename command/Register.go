@@ -2,7 +2,6 @@ package command
 
 import (
 	"errors"
-	"fmt"
 	"github.com/adrianleh/WTMP-middleend/client"
 	"strings"
 )
@@ -17,12 +16,7 @@ func (RegisterCommandHandler) Handle(frame CommandFrame) error {
 
 	cl := client.CreateClient(frame.ClientId, content.path, content.name)
 
-	if client.Clients[content.name] != nil {
-		return fmt.Errorf("client \"%s\" already registered", content.name)
-	}
-
-	client.Clients[content.name] = &cl
-	return nil
+	return client.Clients.Add(content.name, &cl)
 }
 
 type registerCommandContent struct {

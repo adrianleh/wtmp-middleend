@@ -37,9 +37,45 @@ func (cl *Client) GetName() string                { return cl.name }
 func (cl *Client) GetSocketPath() string          { return cl.socketPath }
 func (cl *Client) GetAcceptedTypes() []types.Type { return cl.acceptedTypes }
 
-type ClientMap map[string]*Client // Contains UUID -> Socket mappings
+type ClientMap struct {
+	nameClientMap map[string]*Client // Contains UUID -> Socket mappings
+	mutex         *sync.RWMutex
+}
 
-var Clients ClientMap = map[string]*Client{}
+func CreateClientMap() ClientMap {
+	return ClientMap{
+		nameClientMap: map[string]*Client{},
+		mutex:         &sync.RWMutex{},
+	}
+}
+
+func (clients *ClientMap) Remove(name string) error {
+	clients.mutex.Lock()
+	defer clients.mutex.Unlock()
+	if clients.nameClientMap[name] == nil {
+		return fmt.Errorf("client named \"%s\" does not exist", name)
+	}
+	clients.nameClientMap[name] = nil
+	return nil
+}
+
+func (clients *ClientMap) Get(name string) *Client {
+	clients.mutex.RLock()
+	defer clients.mutex.RUnlock()
+	return clients.nameClientMap[name]
+}
+
+func (clients *ClientMap) Add(name string, client *Client) error {
+	clients.mutex.Lock()
+	defer clients.mutex.Unlock()
+	if clients.nameClientMap[name] != nil {
+		return fmt.Errorf("client named \"%s\" already exists", name)
+	}
+	clients.nameClientMap[name] = client
+	return nil
+}
+
+var Clients = CreateClientMap()
 
 func (cl *Client) Pop(typ types.Type) ([]byte, error) {
 	if queue := cl.mqs[typ]; queue != nil {
