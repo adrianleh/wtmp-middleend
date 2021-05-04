@@ -15,11 +15,7 @@ func (RegisterCommandHandler) Handle(frame CommandFrame) error {
 		return err
 	}
 
-	cl := client.Client{
-		Id:         frame.ClientId,
-		SocketPath: content.path,
-		Name:       content.name,
-	}
+	cl := client.CreateClient(frame.ClientId, content.path, content.name)
 
 	if client.Clients[content.name] != nil {
 		return fmt.Errorf("client \"%s\" already registered", content.name)

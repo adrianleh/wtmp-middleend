@@ -10,11 +10,11 @@ import (
 )
 
 type Client struct {
-	Id                    uuid.UUID
-	SocketPath            string
-	Name                  string
-	AcceptedTypes         []types.Type
-	MQs                   map[types.Type]*messagequeue.MessageQueue
+	id                    uuid.UUID
+	socketPath            string
+	name                  string
+	acceptedTypes         []types.Type
+	mqs                   map[types.Type]*messagequeue.MessageQueue
 	superTypeMQCache      map[types.Type]*messagequeue.MessageQueue // Use to prevent having to walk type hierarchy
 	superTypeMQCacheMutex *sync.RWMutex
 	dataStructureMutex    *sync.Mutex
@@ -22,29 +22,34 @@ type Client struct {
 
 func CreateClient(id uuid.UUID, socketPath string, name string) Client {
 	return Client{
-		Id:                 id,
-		SocketPath:         socketPath,
-		Name:               name,
-		AcceptedTypes:      make([]types.Type, 0),
-		MQs:                map[types.Type]*messagequeue.MessageQueue{},
+		id:                 id,
+		socketPath:         socketPath,
+		name:               name,
+		acceptedTypes:      make([]types.Type, 0),
+		mqs:                map[types.Type]*messagequeue.MessageQueue{},
 		superTypeMQCache:   map[types.Type]*messagequeue.MessageQueue{},
 		dataStructureMutex: &sync.Mutex{},
 	}
 }
+
+func (cl *Client) GetId() uuid.UUID               { return cl.id }
+func (cl *Client) GetName() string                { return cl.name }
+func (cl *Client) GetSocketPath() string          { return cl.socketPath }
+func (cl *Client) GetAcceptedTypes() []types.Type { return cl.acceptedTypes }
 
 type ClientMap map[string]*Client // Contains UUID -> Socket mappings
 
 var Clients ClientMap = map[string]*Client{}
 
 func (cl *Client) Pop(typ types.Type) ([]byte, error) {
-	if queue := cl.MQs[typ]; queue != nil {
+	if queue := cl.mqs[typ]; queue != nil {
 		return queue.Pop()
 	}
 	return nil, fmt.Errorf("no queue found for type \"%s\"", typ.Name())
 }
 
 func (cl *Client) Empty(typ types.Type) bool {
-	if queue := cl.MQs[typ]; queue != nil {
+	if queue := cl.mqs[typ]; queue != nil {
 		return queue.Empty()
 	}
 	return false
@@ -56,7 +61,7 @@ func (cl *Client) Push(typ types.Type, data []byte) error {
 	}
 	superTypes := typ.GetSuperTypes()
 	for _, superType := range superTypes {
-		if queue := cl.MQs[superType]; queue != nil {
+		if queue := cl.mqs[superType]; queue != nil {
 			cl.addToSuperTypeQueue(typ, queue)
 			return queue.Push(data)
 		}
@@ -65,13 +70,13 @@ func (cl *Client) Push(typ types.Type, data []byte) error {
 }
 
 func (cl *Client) RegisterType(typ types.Type) error {
-	if cl.MQs[typ] != nil {
+	if cl.mqs[typ] != nil {
 		return errors.New("type already registered")
 	}
 	cl.dataStructureMutex.Lock()
-	cl.AcceptedTypes = append(cl.AcceptedTypes, typ)
+	cl.acceptedTypes = append(cl.acceptedTypes, typ)
 	queue := messagequeue.CreateMessageQueue(typ.Size())
-	cl.MQs[typ] = &queue
+	cl.mqs[typ] = &queue
 	cl.dataStructureMutex.Unlock()
 	cl.invalidateSuperTypeCache()
 	return nil
