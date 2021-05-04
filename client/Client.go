@@ -10,14 +10,14 @@ import (
 )
 
 type Client struct {
-	Id                  uuid.UUID
-	SocketPath          string
-	Name                string
-	AcceptedTypes       []types.Type
-	MQs                 map[types.Type]*messagequeue.MessageQueue
-	superTypeCache      map[types.Type]*messagequeue.MessageQueue // Use to prevent having to walk type hierarchy
-	superTypeCacheMutex *sync.RWMutex
-	dataStructureMutex  *sync.Mutex
+	Id                    uuid.UUID
+	SocketPath            string
+	Name                  string
+	AcceptedTypes         []types.Type
+	MQs                   map[types.Type]*messagequeue.MessageQueue
+	superTypeMQCache      map[types.Type]*messagequeue.MessageQueue // Use to prevent having to walk type hierarchy
+	superTypeMQCacheMutex *sync.RWMutex
+	dataStructureMutex    *sync.Mutex
 }
 
 func CreateClient(id uuid.UUID, socketPath string, name string) Client {
@@ -27,7 +27,7 @@ func CreateClient(id uuid.UUID, socketPath string, name string) Client {
 		Name:               name,
 		AcceptedTypes:      make([]types.Type, 0),
 		MQs:                map[types.Type]*messagequeue.MessageQueue{},
-		superTypeCache:     map[types.Type]*messagequeue.MessageQueue{},
+		superTypeMQCache:   map[types.Type]*messagequeue.MessageQueue{},
 		dataStructureMutex: &sync.Mutex{},
 	}
 }
@@ -78,19 +78,19 @@ func (cl *Client) RegisterType(typ types.Type) error {
 }
 
 func (cl *Client) addToSuperTypeQueue(typ types.Type, mq *messagequeue.MessageQueue) {
-	cl.superTypeCacheMutex.RLock()
-	defer cl.superTypeCacheMutex.RUnlock()
-	cl.superTypeCache[typ] = mq
+	cl.superTypeMQCacheMutex.RLock() // We don't need a write lock here since overwriting is safe - as it would always be the same value
+	defer cl.superTypeMQCacheMutex.RUnlock()
+	cl.superTypeMQCache[typ] = mq
 }
 
 func (cl *Client) getFromSuperTypeQueue(typ types.Type) *messagequeue.MessageQueue {
-	cl.superTypeCacheMutex.RLock()
-	defer cl.superTypeCacheMutex.RUnlock()
-	return cl.superTypeCache[typ]
+	cl.superTypeMQCacheMutex.RLock()
+	defer cl.superTypeMQCacheMutex.RUnlock()
+	return cl.superTypeMQCache[typ]
 }
 
 func (cl *Client) invalidateSuperTypeCache() {
-	cl.superTypeCacheMutex.Lock() // Once this is executed future reads are blocked until we unlock
-	defer cl.superTypeCacheMutex.Unlock()
-	cl.superTypeCache = map[types.Type]*messagequeue.MessageQueue{}
+	cl.superTypeMQCacheMutex.Lock() // Once this is executed future reads are blocked until we unlock
+	defer cl.superTypeMQCacheMutex.Unlock()
+	cl.superTypeMQCache = map[types.Type]*messagequeue.MessageQueue{}
 }

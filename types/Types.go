@@ -3,6 +3,7 @@ package types
 import (
 	"fmt"
 	"reflect"
+	"sync"
 )
 
 type Type interface {
@@ -92,8 +93,13 @@ func (typ StructType) IsSubtype(superTyp StructType) bool {
 	return true
 }
 
+var globalSuperTypeCache = superTypeCache{}
+
 // GetSuperTypes Get all super types and the type itself
 func (typ StructType) GetSuperTypes() []Type {
+	if cachedSuperTypes := globalSuperTypeCache.get(typ); cachedSuperTypes != nil {
+		return cachedSuperTypes
+	}
 	noFields := len(typ.Fields)
 	superTypes := make([]Type, noFields)
 	for i := range typ.Fields {
@@ -101,6 +107,7 @@ func (typ StructType) GetSuperTypes() []Type {
 			Fields: typ.Fields[:(noFields - i)],
 		}
 	}
+	go globalSuperTypeCache.put(typ, superTypes) // So we don't need to wait for write-back
 	return superTypes
 }
 
@@ -140,3 +147,26 @@ func (typ ArrayType) Size() uint64 {
 	return typ.Length * typ.Typ.Size()
 }
 func (typ ArrayType) GetSuperTypes() []Type { return []Type{typ} }
+
+func createSuperTypeCache() superTypeCache {
+	return superTypeCache{
+		types:      map[Type][]Type{},
+		writeMutex: &sync.Mutex{},
+	}
+}
+
+type superTypeCache struct {
+	types      map[Type][]Type
+	writeMutex *sync.Mutex
+}
+
+func (cache *superTypeCache) get(typ Type) []Type {
+	return cache.types[typ]
+}
+func (cache *superTypeCache) put(typ Type, superTypes []Type) {
+	cache.writeMutex.Lock()
+	defer cache.writeMutex.Unlock()
+	if cache.get(typ) == nil {
+		cache.types[typ] = superTypes
+	}
+}
