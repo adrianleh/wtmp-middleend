@@ -4,12 +4,16 @@ import (
 	"github.com/adrianleh/WTMP-middleend/command"
 	"log"
 	"net"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
 const sockPath = "/tmp/wtmp.sock"
 
 func main() {
 	listener, err := startServer()
+	cleanUpSocketOnExit()
 	if err != nil {
 		panic(err)
 	}
@@ -59,4 +63,16 @@ func accept(listener net.Listener) {
 
 func startServer() (net.Listener, error) {
 	return net.Listen("unix", sockPath)
+}
+
+func cleanUpSocketOnExit() {
+	signalChannel := make(chan os.Signal, 1)
+	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-signalChannel
+		if err := os.Remove(sockPath); err != nil {
+			os.Exit(3)
+		}
+		os.Exit(0)
+	}()
 }
