@@ -104,8 +104,8 @@ func (cl *Client) Empty(typ types.Type) bool {
 	return false
 }
 
-func (cl *Client) PushToSubType(typ types.Type, superType types.Type, data []byte) error {
-	trimmedData, err := types.Trim(superType, typ, data)
+func (cl *Client) PushToSuperType(typ types.Type, superType types.Type, data []byte) error {
+	trimmedData, err := types.Trim(typ, superType, data)
 	if err != nil {
 		return err
 	}
@@ -114,14 +114,14 @@ func (cl *Client) PushToSubType(typ types.Type, superType types.Type, data []byt
 }
 
 func (cl *Client) Push(typ types.Type, data []byte) error {
-	if superType := cl.getFromSuperTypeQueue(typ); superType != nil {
-		return cl.PushToSubType(typ, *superType, data)
+	if superType := cl.getFromSuperTypeCache(typ); superType != nil {
+		return cl.PushToSuperType(typ, *superType, data)
 	}
 	superTypes := typ.GetSuperTypes()
 	for _, superType := range superTypes {
 		if queue := cl.mqs[superType]; queue != nil {
-			cl.addToSuperTypeQueue(typ, &superType)
-			return cl.PushToSubType(typ, superType, data)
+			cl.addToSuperTypeCache(typ, &superType)
+			return cl.PushToSuperType(typ, superType, data)
 		}
 	}
 	return fmt.Errorf("no queue found for type \"%s\"", typ.Name())
@@ -140,13 +140,13 @@ func (cl *Client) RegisterType(typ types.Type) error {
 	return nil
 }
 
-func (cl *Client) addToSuperTypeQueue(typ types.Type, super *types.Type) {
+func (cl *Client) addToSuperTypeCache(typ types.Type, super *types.Type) {
 	cl.superTypeCacheMutex.RLock() // We don't need a write lock here since overwriting is safe - as it would always be the same value
 	defer cl.superTypeCacheMutex.RUnlock()
 	cl.superTypeCache[typ] = super
 }
 
-func (cl *Client) getFromSuperTypeQueue(typ types.Type) *types.Type {
+func (cl *Client) getFromSuperTypeCache(typ types.Type) *types.Type {
 	cl.superTypeCacheMutex.RLock()
 	defer cl.superTypeCacheMutex.RUnlock()
 	return cl.superTypeCache[typ]

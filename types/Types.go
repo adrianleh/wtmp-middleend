@@ -112,7 +112,7 @@ func (typ StructType) GetSuperTypes() []Type {
 	return superTypes
 }
 
-func (typ StructType) TrimToSubType(subType StructType, data []byte) ([]byte, error) {
+func (typ StructType) TrimToSuperType(subType StructType, data []byte) ([]byte, error) {
 	if uint64(len(data)) != typ.Size() {
 		return nil, errors.New("invalid data length")
 	}
@@ -122,16 +122,16 @@ func (typ StructType) TrimToSubType(subType StructType, data []byte) ([]byte, er
 	return data[:subType.Size()], nil
 }
 
-func Trim(typ Type, subType Type, data []byte) ([]byte, error) {
-	if typ == subType {
+func Trim(typ Type, superType Type, data []byte) ([]byte, error) {
+	if typ == superType {
 		return data, nil
 	}
 	structType, isStruct := typ.(StructType)
-	subStructType, isSubStruct := subType.(StructType)
-	if !isStruct || !isSubStruct {
+	superStructType, isSuperStruct := superType.(StructType)
+	if !isStruct || !isSuperStruct {
 		return nil, errors.New("subtyping only exists between structs")
 	}
-	return structType.TrimToSubType(subStructType, data)
+	return structType.TrimToSuperType(superStructType, data)
 }
 
 type UnionType struct {
