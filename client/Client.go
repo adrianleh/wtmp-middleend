@@ -39,40 +39,52 @@ func (cl *Client) GetSocketPath() string          { return cl.socketPath }
 func (cl *Client) GetAcceptedTypes() []types.Type { return cl.acceptedTypes }
 
 type ClientMap struct {
-	nameClientMap map[string]*Client // Contains UUID -> Socket mappings
+	uuidClientMap map[uuid.UUID]*Client
+	nameClientMap map[string]*Client
 	mutex         *sync.RWMutex
 }
 
 func CreateClientMap() ClientMap {
 	return ClientMap{
+		uuidClientMap: map[uuid.UUID]*Client{},
 		nameClientMap: map[string]*Client{},
 		mutex:         &sync.RWMutex{},
 	}
 }
 
-func (clients *ClientMap) Remove(name string) error {
+func (clients *ClientMap) Remove(id uuid.UUID) error {
 	clients.mutex.Lock()
 	defer clients.mutex.Unlock()
-	if clients.nameClientMap[name] == nil {
-		return fmt.Errorf("client named \"%s\" does not exist", name)
+	if clients.uuidClientMap[id] == nil {
+		return fmt.Errorf("client with id \"%s\" does not exist", id.String())
 	}
+	name := clients.uuidClientMap[id].GetName()
 	clients.nameClientMap[name] = nil
+	clients.uuidClientMap[id] = nil
 	return nil
 }
 
-func (clients *ClientMap) Get(name string) *Client {
+func (clients *ClientMap) GetByName(name string) *Client {
 	clients.mutex.RLock()
 	defer clients.mutex.RUnlock()
 	return clients.nameClientMap[name]
 }
 
-func (clients *ClientMap) Add(name string, client *Client) error {
+func (clients *ClientMap) GetById(id uuid.UUID) *Client {
+	clients.mutex.RLock()
+	defer clients.mutex.RUnlock()
+	return clients.uuidClientMap[id]
+}
+
+func (clients *ClientMap) Add(client *Client) error {
 	clients.mutex.Lock()
 	defer clients.mutex.Unlock()
+	name := client.GetName()
 	if clients.nameClientMap[name] != nil {
 		return fmt.Errorf("client named \"%s\" already exists", name)
 	}
 	clients.nameClientMap[name] = client
+	clients.uuidClientMap[client.GetId()] = client
 	return nil
 }
 
