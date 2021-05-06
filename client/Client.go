@@ -10,25 +10,26 @@ import (
 )
 
 type Client struct {
-	id                    uuid.UUID
-	socketPath            string
-	name                  string
-	acceptedTypes         []types.Type
-	mqs                   map[types.Type]*messagequeue.MessageQueue
-	superTypeMQCache      map[types.Type]*messagequeue.MessageQueue // Use to prevent having to walk type hierarchy
-	superTypeMQCacheMutex *sync.RWMutex
-	dataStructureMutex    *sync.Mutex
+	id                  uuid.UUID
+	socketPath          string
+	name                string
+	acceptedTypes       []types.Type
+	mqs                 map[types.Type]*messagequeue.MessageQueue
+	superTypeCache      map[types.Type]*types.Type
+	superTypeCacheMutex *sync.RWMutex
+	dataStructureMutex  *sync.Mutex
 }
 
 func CreateClient(id uuid.UUID, socketPath string, name string) Client {
 	return Client{
-		id:                 id,
-		socketPath:         socketPath,
-		name:               name,
-		acceptedTypes:      make([]types.Type, 0),
-		mqs:                map[types.Type]*messagequeue.MessageQueue{},
-		superTypeMQCache:   map[types.Type]*messagequeue.MessageQueue{},
-		dataStructureMutex: &sync.Mutex{},
+		id:                  id,
+		socketPath:          socketPath,
+		name:                name,
+		acceptedTypes:       make([]types.Type, 0),
+		mqs:                 map[types.Type]*messagequeue.MessageQueue{},
+		superTypeCache:      map[types.Type]*types.Type{},
+		dataStructureMutex:  &sync.Mutex{},
+		superTypeCacheMutex: &sync.RWMutex{},
 	}
 }
 
@@ -91,15 +92,24 @@ func (cl *Client) Empty(typ types.Type) bool {
 	return false
 }
 
+func (cl *Client) PushToSubType(typ types.Type, superType types.Type, data []byte) error {
+	trimmedData, err := types.Trim(superType, typ, data)
+	if err != nil {
+		return err
+	}
+	queue := cl.mqs[superType]
+	return queue.Push(trimmedData)
+}
+
 func (cl *Client) Push(typ types.Type, data []byte) error {
-	if queue := cl.getFromSuperTypeQueue(typ); queue != nil {
-		return queue.Push(data)
+	if superType := cl.getFromSuperTypeQueue(typ); superType != nil {
+		return cl.PushToSubType(typ, *superType, data)
 	}
 	superTypes := typ.GetSuperTypes()
 	for _, superType := range superTypes {
 		if queue := cl.mqs[superType]; queue != nil {
-			cl.addToSuperTypeQueue(typ, queue)
-			return queue.Push(data)
+			cl.addToSuperTypeQueue(typ, &superType)
+			return cl.PushToSubType(typ, superType, data)
 		}
 	}
 	return fmt.Errorf("no queue found for type \"%s\"", typ.Name())
@@ -118,20 +128,20 @@ func (cl *Client) RegisterType(typ types.Type) error {
 	return nil
 }
 
-func (cl *Client) addToSuperTypeQueue(typ types.Type, mq *messagequeue.MessageQueue) {
-	cl.superTypeMQCacheMutex.RLock() // We don't need a write lock here since overwriting is safe - as it would always be the same value
-	defer cl.superTypeMQCacheMutex.RUnlock()
-	cl.superTypeMQCache[typ] = mq
+func (cl *Client) addToSuperTypeQueue(typ types.Type, super *types.Type) {
+	cl.superTypeCacheMutex.RLock() // We don't need a write lock here since overwriting is safe - as it would always be the same value
+	defer cl.superTypeCacheMutex.RUnlock()
+	cl.superTypeCache[typ] = super
 }
 
-func (cl *Client) getFromSuperTypeQueue(typ types.Type) *messagequeue.MessageQueue {
-	cl.superTypeMQCacheMutex.RLock()
-	defer cl.superTypeMQCacheMutex.RUnlock()
-	return cl.superTypeMQCache[typ]
+func (cl *Client) getFromSuperTypeQueue(typ types.Type) *types.Type {
+	cl.superTypeCacheMutex.RLock()
+	defer cl.superTypeCacheMutex.RUnlock()
+	return cl.superTypeCache[typ]
 }
 
 func (cl *Client) invalidateSuperTypeCache() {
-	cl.superTypeMQCacheMutex.Lock() // Once this is executed future reads are blocked until we unlock
-	defer cl.superTypeMQCacheMutex.Unlock()
-	cl.superTypeMQCache = map[types.Type]*messagequeue.MessageQueue{}
+	cl.superTypeCacheMutex.Lock() // Once this is executed future reads are blocked until we unlock
+	defer cl.superTypeCacheMutex.Unlock()
+	cl.superTypeCache = map[types.Type]*types.Type{}
 }

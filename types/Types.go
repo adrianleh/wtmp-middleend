@@ -1,6 +1,7 @@
 package types
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"sync"
@@ -93,7 +94,7 @@ func (typ StructType) IsSubtype(superTyp StructType) bool {
 	return true
 }
 
-var globalSuperTypeCache = superTypeCache{}
+var globalSuperTypeCache = createSuperTypeCache()
 
 // GetSuperTypes Get all super types and the type itself
 func (typ StructType) GetSuperTypes() []Type {
@@ -109,6 +110,28 @@ func (typ StructType) GetSuperTypes() []Type {
 	}
 	go globalSuperTypeCache.put(typ, superTypes) // So we don't need to wait for write-back
 	return superTypes
+}
+
+func (typ StructType) TrimToSubType(subType StructType, data []byte) ([]byte, error) {
+	if uint64(len(data)) != typ.Size() {
+		return nil, errors.New("invalid data length")
+	}
+	if !subType.IsSubtype(typ) {
+		return nil, errors.New("not actually a subtype")
+	}
+	return data[:subType.Size()], nil
+}
+
+func Trim(typ Type, subType Type, data []byte) ([]byte, error) {
+	if typ == subType {
+		return data, nil
+	}
+	structType, isStruct := typ.(StructType)
+	subStructType, isSubStruct := subType.(StructType)
+	if !isStruct || !isSubStruct {
+		return nil, errors.New("subtyping only exists between structs")
+	}
+	return structType.TrimToSubType(subStructType, data)
 }
 
 type UnionType struct {
