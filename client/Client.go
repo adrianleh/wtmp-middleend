@@ -97,11 +97,11 @@ func (cl *Client) Pop(typ types.Type) ([]byte, error) {
 	return nil, fmt.Errorf("no queue found for type \"%s\"", typ.Name())
 }
 
-func (cl *Client) Empty(typ types.Type) bool {
+func (cl *Client) Empty(typ types.Type) (bool, error) {
 	if queue := cl.mqs[typ]; queue != nil {
-		return queue.Empty()
+		return queue.Empty(), nil
 	}
-	return false
+	return false, errors.New("no queue exists for type")
 }
 
 func (cl *Client) PushToSuperType(typ types.Type, superType types.Type, data []byte) error {
