@@ -2,8 +2,9 @@ package command
 
 import (
 	"errors"
-	"github.com/adrianleh/WTMP-middleend/client"
 	"strings"
+
+	"github.com/adrianleh/WTMP-middleend/client"
 )
 
 type RegisterCommandHandler struct{}
@@ -16,7 +17,7 @@ func (RegisterCommandHandler) Handle(frame CommandFrame) error {
 
 	cl := client.CreateClient(frame.ClientId, content.path, content.name)
 
-	return client.Clients.Add(content.name, &cl)
+	return client.Clients.Add(&cl) // client.Clients.Add(content.name, &cl)
 }
 
 type registerCommandContent struct {
