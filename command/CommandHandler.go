@@ -3,6 +3,7 @@ package command
 import (
 	"encoding/binary"
 	"errors"
+
 	"github.com/google/uuid"
 )
 
@@ -71,6 +72,14 @@ func Handle(frame CommandFrame) error {
 	switch frame.CommandId {
 	case RegisterCommandId:
 		handler = RegisterCommandHandler{}
+	case AcceptTypeCommandId:
+		handler = AcceptTypeCommandHandler{}
+	case SendCommandId:
+		handler = SendCommandHandler{}
+	case GetCommandId:
+		handler = GetCommandHandler{}
+	case EmptyCommandId:
+		handler = EmptyCommandHandler{}
 	default:
 		handler = DefaultHandler{}
 	}
