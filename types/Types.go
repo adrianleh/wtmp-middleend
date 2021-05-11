@@ -180,8 +180,8 @@ func (typ BoolType) Deserialize(data []byte) (Type, error) {
 }
 
 type StructType struct {
-	Type   `json:"-"`
-	Fields []Type `json:"fields"`
+	Type
+	Fields []Type
 }
 
 func (typ StructType) Name() string {
@@ -303,8 +303,8 @@ func (typ StructType) Deserialize(data []byte) (Type, error) {
 }
 
 type UnionType struct {
-	Type    `json:"-"`
-	Members []Type `json:"members"`
+	Type
+	Members []Type
 }
 
 func (typ UnionType) Name() string {
@@ -378,9 +378,9 @@ func (typ UnionType) Deserialize(data []byte) (Type, error) {
 }
 
 type ArrayType struct {
-	Type   `json:"-"`
-	Length uint64 `json:"length"`
-	Typ    Type   `json:"typ"`
+	Type
+	Length uint64
+	Typ    Type
 }
 
 func (typ ArrayType) Name() string {
