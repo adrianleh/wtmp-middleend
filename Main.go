@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"github.com/adrianleh/WTMP-middleend/command"
 	"log"
 	"net"
@@ -22,31 +23,17 @@ func main() {
 	accept(listener)
 }
 
-func DialSocketAndSend(path string, message []byte) error {
-	sock, err := net.Dial("unix", path)
-	if err != nil {
-		return err
-	}
-	_, err = sock.Write(message)
-	return err
-}
-
 func server(conn net.Conn) {
 	defer conn.Close()
-
-	data := make([]byte, 0)
-	for {
-		buf := make([]byte, 512)
-		nr, err := conn.Read(buf)
-		if err != nil {
-			break
-		}
-		data = append(data, buf[0:nr]...)
+	buf := new(bytes.Buffer)
+	if _, err := buf.ReadFrom(conn); err != nil {
+		log.Printf("Failed to read: %v", err)
 	}
+	data := buf.Bytes()
 	frame, err := command.ParseCommandFrame(data)
 	err = command.Handle(frame)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Command failed: %v", err)
 	}
 }
 
