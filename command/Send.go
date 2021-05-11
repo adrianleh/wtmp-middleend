@@ -1,9 +1,8 @@
 package command
 
 import (
+	"encoding/binary"
 	"errors"
-	"strings"
-
 	"github.com/adrianleh/WTMP-middleend/client"
 	"github.com/adrianleh/WTMP-middleend/types"
 )
@@ -21,57 +20,49 @@ func (SendCommandHandler) Handle(frame CommandFrame) error {
 }
 
 type sendCommandContent struct {
-	typ types.Type
+	typ    types.Type
 	target string
-	msg []byte
+	msg    []byte
 }
 
 func sendData(data []byte) (sendCommandContent, error) {
-	// TODO: below is placeholder: depends on type serialization here
-	// Spaghetti code to be refactored
-	nullNameIdx := strings.Index(string(data), "\x00")
-	if nullNameIdx < 0 {
-		return sendCommandContent{}, errors.New("invalid format: no string found for type name")
+	if len(data) < 8 {
+		return sendCommandContent{}, errors.New("data must at least have delimiters")
 	}
-	name := string(data[:nullNameIdx]) // convert to string
+	nameLen := binary.BigEndian.Uint32(data[0:4])
+	typeLen := binary.BigEndian.Uint32(data[4:8])
 
-	var typ types.Type
-	if strings.HasPrefix(name, "Array") {
-		typ = types.ArrayType{}
-	} else if strings.HasPrefix(name, "Union") {
-		typ = types.UnionType{}
-	} else if strings.HasPrefix(name, "Struct") {
-		typ = types.StructType{}
+	nameStartIdx := uint32(8)
+	nameEndIdx := nameStartIdx + nameLen
+	typeStartIdx := nameEndIdx
+	typeEndIdx := typeStartIdx + typeLen
+
+	if uint32(len(data)) < typeEndIdx {
+		return sendCommandContent{}, errors.New("data too short")
+	}
+
+	nameRaw := data[nameStartIdx:nameEndIdx]
+	typeRaw := data[typeStartIdx:typeEndIdx]
+
+	name := string(nameRaw)
+
+	typ, err := types.Deserialize(typeRaw)
+	if err != nil {
+		return sendCommandContent{}, err
+	}
+
+	msgStartIdx := typeEndIdx
+
+	var msg []byte
+	if uint32(len(data)) == msgStartIdx {
+		msg = make([]byte, 0)
 	} else {
-		switch name {
-		case "Char":
-			typ = types.CharType{} 
-		case "Int32":
-			typ = types.Int32Type{}
-		case "Int64":
-			typ = types.Int32Type{}
-		case "Float32":
-			typ = types.Float32Type{}
-		case "Float64":
-			typ = types.Float64Type{}
-		case "Bool":
-			typ = types.BoolType{}
-		default:
-			return sendCommandContent{}, errors.New("invalid type: what type is this??")
-		}
+		msg = data[msgStartIdx:]
 	}
-
-	restOfData := data[nullNameIdx+1:]
-	nullTargetIdx := strings.Index(string(restOfData), "\x00")
-	if nullTargetIdx < 0 {
-		return sendCommandContent{}, errors.New("invalid format: no string found for target")
-	}
-	target := string(restOfData[:nullTargetIdx]) // convert to string
-	msg := restOfData[nullTargetIdx+1:] // TODO: I think we said empty msgs are okay?
 
 	return sendCommandContent{
-		typ: typ,
-		target: target,
-		msg: msg,
+		typ:    typ,
+		target: name,
+		msg:    msg,
 	}, nil
 }

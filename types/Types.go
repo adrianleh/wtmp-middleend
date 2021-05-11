@@ -1,6 +1,7 @@
 package types
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"reflect"
@@ -9,10 +10,49 @@ import (
 
 type Type interface {
 	Name() string
+	typId() byte
 	Size() uint64
+	Serialize() []byte
+	Deserialize([]byte) (Type, error)
 	// GetSuperTypes Gets all types that such that the current type is equal to or a subtype of
 	// Ordered from same type up to highest subtype
 	GetSuperTypes() []Type
+}
+
+var typIdMap = createTypeIdMap()
+
+func createTypeIdMap() map[byte]Type {
+	idMap := map[byte]Type{}
+	types := []Type{CharType{}, Int32Type{}, Int64Type{}, Float32Type{}, Float64Type{}, BoolType{}, StructType{}, UnionType{}, ArrayType{}}
+	for _, typ := range types {
+		idMap[typ.typId()] = typ
+	}
+	return idMap
+}
+
+const (
+	charTypeId    = 0
+	int32TypeId   = 1
+	int64TypeId   = 2
+	float32TypeId = 3
+	float64TypeId = 4
+	boolTypeId    = 5
+	structTypeId  = 6
+	unionTypeId   = 7
+	arrayTypeId   = 8
+)
+
+func Deserialize(raw []byte) (Type, error) {
+	if len(raw) < 5 {
+		return nil, errors.New("too short")
+	}
+	typId := raw[4]
+	typ := typIdMap[typId]
+	desertyp, err := typ.Deserialize(raw)
+	if err != nil {
+		return nil, err
+	}
+	return desertyp, nil
 }
 
 type CharType struct {
@@ -20,52 +60,128 @@ type CharType struct {
 }
 
 func (typ CharType) Name() string          { return "Char" }
+func (typ CharType) typId() byte           { return charTypeId }
 func (typ CharType) Size() uint64          { return 2 }
 func (typ CharType) GetSuperTypes() []Type { return []Type{typ} }
+func (typ CharType) Serialize() []byte {
+	ser := make([]byte, 4)
+	binary.BigEndian.PutUint32(ser, 5)
+	return append(ser, typ.typId())
+}
+func (typ CharType) Deserialize(data []byte) (Type, error) {
+	if len(data) != 5 {
+		return typ, errors.New("invalid length")
+	}
+	return typ, nil
+}
 
 type Int32Type struct {
 	Type
 }
 
 func (typ Int32Type) Name() string          { return "Int32" }
+func (typ Int32Type) typId() byte           { return int32TypeId }
 func (typ Int32Type) Size() uint64          { return 4 }
 func (typ Int32Type) GetSuperTypes() []Type { return []Type{typ} }
+func (typ Int32Type) Serialize() []byte {
+	ser := make([]byte, 4)
+	binary.BigEndian.PutUint32(ser, 5)
+
+	return append(ser, typ.typId())
+}
+func (typ Int32Type) Deserialize(data []byte) (Type, error) {
+	if len(data) != 5 {
+		return typ, errors.New("invalid length")
+	}
+	return typ, nil
+}
 
 type Int64Type struct {
 	Type
 }
 
 func (typ Int64Type) Name() string          { return "Int64" }
+func (typ Int64Type) typId() byte           { return int64TypeId }
 func (typ Int64Type) Size() uint64          { return 8 }
 func (typ Int64Type) GetSuperTypes() []Type { return []Type{typ} }
+func (typ Int64Type) Serialize() []byte {
+	ser := make([]byte, 4)
+	binary.BigEndian.PutUint32(ser, 5)
+
+	return append(ser, typ.typId())
+}
+func (typ Int64Type) Deserialize(data []byte) (Type, error) {
+	if len(data) != 5 {
+		return typ, errors.New("invalid length")
+	}
+	return typ, nil
+}
 
 type Float32Type struct {
 	Type
 }
 
 func (typ Float32Type) Name() string          { return "Float32" }
+func (typ Float32Type) typId() byte           { return float32TypeId }
 func (typ Float32Type) Size() uint64          { return 4 }
 func (typ Float32Type) GetSuperTypes() []Type { return []Type{typ} }
+func (typ Float32Type) Serialize() []byte {
+	ser := make([]byte, 4)
+	binary.BigEndian.PutUint32(ser, 5)
+
+	return append(ser, typ.typId())
+}
+func (typ Float32Type) Deserialize(data []byte) (Type, error) {
+	if len(data) != 5 {
+		return typ, errors.New("invalid length")
+	}
+	return typ, nil
+}
 
 type Float64Type struct {
 	Type
 }
 
 func (typ Float64Type) Name() string          { return "Float64" }
+func (typ Float64Type) typId() byte           { return float64TypeId }
 func (typ Float64Type) Size() uint64          { return 8 }
 func (typ Float64Type) GetSuperTypes() []Type { return []Type{typ} }
+func (typ Float64Type) Serialize() []byte {
+	ser := make([]byte, 4)
+	binary.BigEndian.PutUint32(ser, 5)
+
+	return append(ser, typ.typId())
+}
+func (typ Float64Type) Deserialize(data []byte) (Type, error) {
+	if len(data) != 5 {
+		return typ, errors.New("invalid length")
+	}
+	return typ, nil
+}
 
 type BoolType struct {
 	Type
 }
 
 func (typ BoolType) Name() string          { return "Bool" }
+func (typ BoolType) typId() byte           { return boolTypeId }
 func (typ BoolType) Size() uint64          { return 1 }
 func (typ BoolType) GetSuperTypes() []Type { return []Type{typ} }
+func (typ BoolType) Serialize() []byte {
+	ser := make([]byte, 4)
+	binary.BigEndian.PutUint32(ser, 5)
+	return append(ser, typ.typId())
+}
+func (typ BoolType) Deserialize(data []byte) (Type, error) {
+	if len(data) != 5 {
+		return typ, errors.New("invalid length")
+	}
+	return typ, nil
+}
 
 type StructType struct {
-	Type
-	Fields []Type
+	Type   `json:"-"`
+	Fields []Type `json:"fields"`
 }
 
 func (typ StructType) Name() string {
@@ -74,6 +190,9 @@ func (typ StructType) Name() string {
 		name += "-" + fieldTyp.Name()
 	}
 	return name
+}
+func (typ StructType) typId() byte {
+	return structTypeId
 }
 func (typ StructType) Size() uint64 {
 	size := uint64(0)
@@ -133,10 +252,59 @@ func Trim(typ Type, superType Type, data []byte) ([]byte, error) {
 	}
 	return structType.TrimToSuperType(superStructType, data)
 }
+func (typ StructType) Serialize() []byte {
+	serFields := make([]byte, 0)
+	length := uint32(9)
+	noFields := uint32(0)
+	for _, field := range typ.Fields {
+		fieldSer := field.Serialize()
+		fieldLen := binary.BigEndian.Uint32(fieldSer[0:4])
+		length = length + fieldLen
+		noFields = noFields + 1
+		serFields = append(serFields, fieldSer...)
+	}
+	lenRaw := make([]byte, 4)
+	binary.BigEndian.PutUint32(lenRaw, length)
+	noFieldRaw := make([]byte, 4)
+	binary.BigEndian.PutUint32(noFieldRaw, noFields)
+	return append(append(lenRaw, typ.typId()), append(noFieldRaw, serFields...)...)
+}
+
+func (typ StructType) Deserialize(data []byte) (Type, error) {
+	if len(data) < 8 {
+		return typ, errors.New("too short")
+	}
+	noFields := binary.BigEndian.Uint32(data[5:9])
+	startIdx := uint32(4 + 1 + 4)
+	var fields []Type
+	for i := uint32(0); i < noFields; i++ {
+		lenMaxIdx := startIdx + 4
+		typIdIdx := lenMaxIdx
+		if uint32(len(data)) < typIdIdx {
+			return typ, errors.New("too short")
+		}
+		fieldLen := binary.BigEndian.Uint32(data[startIdx:lenMaxIdx])
+		endIdx := startIdx + fieldLen
+		if uint32(len(data)) < endIdx {
+			return typ, errors.New("too short")
+		}
+		fieldArr := data[startIdx:endIdx]
+		fieldTypId := data[typIdIdx]
+		fieldTyp := typIdMap[fieldTypId]
+		fieldDeserTyp, err := fieldTyp.Deserialize(fieldArr)
+		if err != nil {
+			return typ, err
+		}
+		fields = append(fields, fieldDeserTyp)
+		startIdx = endIdx
+	}
+	typ.Fields = fields
+	return typ, nil
+}
 
 type UnionType struct {
-	Type
-	Members []Type
+	Type    `json:"-"`
+	Members []Type `json:"members"`
 }
 
 func (typ UnionType) Name() string {
@@ -145,6 +313,9 @@ func (typ UnionType) Name() string {
 		name += "-" + memberTyp.Name()
 	}
 	return name
+}
+func (typ UnionType) typId() byte {
+	return unionTypeId
 }
 func (typ UnionType) Size() uint64 {
 	size := uint64(0)
@@ -156,20 +327,101 @@ func (typ UnionType) Size() uint64 {
 	return size
 }
 func (typ UnionType) GetSuperTypes() []Type { return []Type{typ} }
+func (typ UnionType) Serialize() []byte {
+	serFields := make([]byte, 0)
+	length := uint32(9)
+	noFields := uint32(0)
+	for _, field := range typ.Members {
+		fieldSer := field.Serialize()
+		fieldLen := binary.BigEndian.Uint32(fieldSer[0:4])
+		length = length + fieldLen
+		noFields = noFields + 1
+		serFields = append(serFields, fieldSer...)
+	}
+	lenRaw := make([]byte, 4)
+	binary.BigEndian.PutUint32(lenRaw, length)
+	noFieldRaw := make([]byte, 4)
+	binary.BigEndian.PutUint32(noFieldRaw, noFields)
+	return append(append(lenRaw, typ.typId()), append(noFieldRaw, serFields...)...)
+}
+
+func (typ UnionType) Deserialize(data []byte) (Type, error) {
+	if len(data) < 8 {
+		return typ, errors.New("too short")
+	}
+	noFields := binary.BigEndian.Uint32(data[5:9])
+	startIdx := uint32(4 + 1 + 4)
+	var fields []Type
+	for i := uint32(0); i < noFields; i++ {
+		lenMaxIdx := startIdx + 4
+		typIdIdx := lenMaxIdx
+		if uint32(len(data)) < typIdIdx {
+			return typ, errors.New("too short")
+		}
+		fieldLen := binary.BigEndian.Uint32(data[startIdx:lenMaxIdx])
+		endIdx := startIdx + fieldLen
+		if uint32(len(data)) < endIdx {
+			return typ, errors.New("too short")
+		}
+		fieldArr := data[startIdx:endIdx]
+		fieldTypId := data[typIdIdx]
+		fieldTyp := typIdMap[fieldTypId]
+		fieldDeserTyp, err := fieldTyp.Deserialize(fieldArr)
+		if err != nil {
+			return typ, err
+		}
+		fields = append(fields, fieldDeserTyp)
+		startIdx = endIdx
+	}
+	typ.Members = fields
+	return typ, nil
+}
 
 type ArrayType struct {
-	Type
-	Length uint64
-	Typ    Type
+	Type   `json:"-"`
+	Length uint64 `json:"length"`
+	Typ    Type   `json:"typ"`
 }
 
 func (typ ArrayType) Name() string {
 	return fmt.Sprintf("Array-%s-%d", typ.Typ.Name(), typ.Length)
 }
+func (typ ArrayType) typId() byte {
+	return arrayTypeId
+}
 func (typ ArrayType) Size() uint64 {
 	return typ.Length * typ.Typ.Size()
 }
 func (typ ArrayType) GetSuperTypes() []Type { return []Type{typ} }
+func (typ ArrayType) Serialize() []byte {
+	typSer := typ.Typ.Serialize()
+	typSerLen := uint32(len(typSer))
+	lenRaw := make([]byte, 4)
+	binary.BigEndian.PutUint32(lenRaw, typSerLen+4+1+8)
+	innerLenRaw := make([]byte, 8)
+	binary.BigEndian.PutUint64(innerLenRaw, typ.Length)
+	result := append(lenRaw, typ.typId())
+	result = append(result, innerLenRaw...)
+	result = append(result, typSer...)
+	return result
+}
+func (typ ArrayType) Deserialize(data []byte) (Type, error) {
+	nonForeignSize := 4 + 1 + 8
+	minLength := nonForeignSize + 4 + 1
+	if len(data) < minLength {
+		return typ, errors.New("too short")
+	}
+	lenRaw := data[5 : 5+8]
+	typ.Length = binary.BigEndian.Uint64(lenRaw)
+	innerTypId := data[minLength-1]
+	inner := typIdMap[innerTypId]
+	innerDeser, err := inner.Deserialize(data[nonForeignSize:])
+	if err != nil {
+		return typ, err
+	}
+	typ.Typ = innerDeser
+	return typ, nil
+}
 
 func createSuperTypeCache() superTypeCache {
 	return superTypeCache{

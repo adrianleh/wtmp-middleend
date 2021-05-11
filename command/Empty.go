@@ -8,13 +8,13 @@ import (
 type EmptyCommandHandler struct{}
 
 func (EmptyCommandHandler) Handle(frame CommandFrame) error {
-	content, err := getType(frame.Data)
+	typ, err := types.Deserialize(frame.Data)
 	if err != nil {
 		return err
 	}
 
 	cl := client.Clients.GetById(frame.ClientId)
-	_, err = cl.Empty(content.typ)
+	_, err = cl.Empty(typ)
 	return err
 }
 

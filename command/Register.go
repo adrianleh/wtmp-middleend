@@ -1,9 +1,8 @@
 package command
 
 import (
+	"encoding/binary"
 	"errors"
-	"strings"
-
 	"github.com/adrianleh/WTMP-middleend/client"
 )
 
@@ -26,19 +25,25 @@ type registerCommandContent struct {
 }
 
 func parseData(data []byte) (registerCommandContent, error) {
-	nullNameIdx := strings.Index(string(data), "\x00")
-	if nullNameIdx < 0 {
-		return registerCommandContent{}, errors.New("invalid format: no string found")
+	if len(data) < 4 {
+		return registerCommandContent{}, errors.New("data must at least have delimiters")
 	}
-	name := string(data[:nullNameIdx])
-	if len(data) < nullNameIdx+1 {
-		return registerCommandContent{}, errors.New("invalid format: data too short: no path")
-	}
-	rawPath := data[nullNameIdx+1:]
-	nullPathIdx := strings.Index(string(rawPath), "\x00")
-	path := string(rawPath[:nullPathIdx])
 
-	// TODO: Length check entire frame
+	nameLen := binary.BigEndian.Uint32(data[0:4])
+
+	nameStartIdx := uint32(4)
+	nameEndIdx := nameStartIdx + nameLen
+	pathStartIdx := nameEndIdx
+
+	if uint32(len(data)) < pathStartIdx {
+		return registerCommandContent{}, errors.New("data to short")
+	}
+
+	nameRaw := data[nameStartIdx:nameEndIdx]
+	pathRaw := data[pathStartIdx:]
+
+	name := string(nameRaw)
+	path := string(pathRaw)
 
 	return registerCommandContent{
 		name: name,
