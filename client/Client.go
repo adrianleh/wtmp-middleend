@@ -1,11 +1,14 @@
 package client
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"github.com/adrianleh/WTMP-middleend/messagequeue"
 	"github.com/adrianleh/WTMP-middleend/types"
 	"github.com/google/uuid"
+	"io"
+	"net"
 	"sync"
 )
 
@@ -16,6 +19,7 @@ type Client struct {
 	acceptedTypes       []types.Type
 	mqs                 map[types.Type]*messagequeue.MessageQueue
 	superTypeCache      map[types.Type]*types.Type
+	sock                *net.Conn
 	superTypeCacheMutex *sync.RWMutex
 	dataStructureMutex  *sync.Mutex
 }
@@ -31,6 +35,26 @@ func CreateClient(id uuid.UUID, socketPath string, name string) Client {
 		dataStructureMutex:  &sync.Mutex{},
 		superTypeCacheMutex: &sync.RWMutex{},
 	}
+}
+
+func (cl *Client) GetSocket() (*net.Conn, error) {
+	if cl.sock != nil {
+		return cl.sock, nil
+	}
+	sock, err := net.Dial("unix", cl.socketPath)
+	if err != nil {
+		return nil, err
+	}
+	cl.sock = &sock
+	return cl.sock, err
+}
+func (cl *Client) SendToClient(data []byte) error {
+	sock, err := cl.GetSocket()
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(*sock, bytes.NewReader(data))
+	return err
 }
 
 func (cl *Client) GetId() uuid.UUID               { return cl.id }
