@@ -14,8 +14,11 @@ func (GetCommandHandler) Handle(frame CommandFrame) error {
 	}
 
 	cl := client.Clients.GetById(frame.ClientId)
-	_, err = cl.Pop(typ)
-	return err
+	data, err := cl.Pop(typ)
+	if err != nil {
+		return err
+	}
+	return cl.SendToClient(data)
 }
 
 type getCommandContent struct {
