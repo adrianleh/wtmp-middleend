@@ -19,12 +19,16 @@ type Client struct {
 	acceptedTypes       []types.Type
 	mqs                 map[types.Type]*messagequeue.MessageQueue
 	superTypeCache      map[types.Type]*types.Type
-	sock                *net.Conn
 	superTypeCacheMutex *sync.RWMutex
 	dataStructureMutex  *sync.Mutex
+	sock                net.Conn
 }
 
-func CreateClient(id uuid.UUID, socketPath string, name string) Client {
+func CreateClient(id uuid.UUID, socketPath string, name string) (Client, error) {
+	sock, err := net.Dial("unix", socketPath)
+	if err != nil {
+		return Client{}, err
+	}
 	return Client{
 		id:                  id,
 		socketPath:          socketPath,
@@ -34,26 +38,12 @@ func CreateClient(id uuid.UUID, socketPath string, name string) Client {
 		superTypeCache:      map[types.Type]*types.Type{},
 		dataStructureMutex:  &sync.Mutex{},
 		superTypeCacheMutex: &sync.RWMutex{},
-	}
+		sock:                sock,
+	}, nil
 }
 
-func (cl *Client) GetSocket() (*net.Conn, error) {
-	if cl.sock != nil {
-		return cl.sock, nil
-	}
-	sock, err := net.Dial("unix", cl.socketPath)
-	if err != nil {
-		return nil, err
-	}
-	cl.sock = &sock
-	return cl.sock, err
-}
 func (cl *Client) SendToClient(data []byte) error {
-	sock, err := cl.GetSocket()
-	if err != nil {
-		return err
-	}
-	_, err = io.Copy(*sock, bytes.NewReader(data))
+	_, err := io.Copy(cl.sock, bytes.NewReader(data))
 	return err
 }
 

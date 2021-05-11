@@ -14,8 +14,10 @@ func (RegisterCommandHandler) Handle(frame CommandFrame) error {
 		return err
 	}
 
-	cl := client.CreateClient(frame.ClientId, content.path, content.name)
-
+	cl, err := client.CreateClient(frame.ClientId, content.path, content.name)
+	if err != nil {
+		return err
+	}
 	return client.Clients.Add(&cl) // client.Clients.Add(content.name, &cl)
 }
 
