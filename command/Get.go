@@ -8,13 +8,13 @@ import (
 type GetCommandHandler struct{}
 
 func (GetCommandHandler) Handle(frame CommandFrame) error {
-	content, err := getType(frame.Data)
+	typ, err := types.Deserialize(frame.Data)
 	if err != nil {
 		return err
 	}
 
 	cl := client.Clients.GetById(frame.ClientId)
-	_, err = cl.Pop(content.typ)
+	_, err = cl.Pop(typ)
 	return err
 }
 
