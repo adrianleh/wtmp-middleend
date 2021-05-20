@@ -14,8 +14,15 @@ func (EmptyCommandHandler) Handle(frame CommandFrame) error {
 	}
 
 	cl := client.Clients.GetById(frame.ClientId)
-	_, err = cl.Empty(typ)
-	return err
+	empty, err := cl.Empty(typ)
+	if err != nil {
+		return err
+	}
+	binEmpty := []byte{0}
+	if empty {
+		binEmpty[0] = 1
+	}
+	return cl.SendToClient(binEmpty)
 }
 
 type emptyCommandContent struct {
