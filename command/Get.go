@@ -20,7 +20,3 @@ func (GetCommandHandler) Handle(frame CommandFrame) error {
 	}
 	return cl.SendToClient(data)
 }
-
-type getCommandContent struct {
-	typ types.Type
-}

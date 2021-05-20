@@ -13,7 +13,7 @@ type Handler interface {
 
 type DefaultHandler struct{}
 
-func (DefaultHandler) Handle(frame CommandFrame) error {
+func (DefaultHandler) Handle(CommandFrame) error {
 	return errors.New("unsupported command")
 }
 

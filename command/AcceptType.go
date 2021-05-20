@@ -16,7 +16,3 @@ func (AcceptTypeCommandHandler) Handle(frame CommandFrame) error {
 	cl := client.Clients.GetById(frame.ClientId)
 	return cl.RegisterType(typ)
 }
-
-type acceptTypeCommandContent struct {
-	typ types.Type
-}

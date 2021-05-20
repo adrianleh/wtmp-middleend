@@ -24,7 +24,3 @@ func (EmptyCommandHandler) Handle(frame CommandFrame) error {
 	}
 	return cl.SendToClient(binEmpty)
 }
-
-type emptyCommandContent struct {
-	typ types.Type
-}
