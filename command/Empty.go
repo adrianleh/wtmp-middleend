@@ -1,6 +1,7 @@
 package command
 
 import (
+	"errors"
 	"github.com/adrianleh/WTMP-middleend/client"
 	"github.com/adrianleh/WTMP-middleend/types"
 )
@@ -14,6 +15,9 @@ func (EmptyCommandHandler) Handle(frame *CommandFrame) error {
 	}
 
 	cl := client.Clients.GetById(frame.ClientId)
+	if cl == nil {
+		return errors.New("client not found")
+	}
 	empty, err := cl.Empty(typ)
 	if err != nil {
 		return err

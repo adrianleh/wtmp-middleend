@@ -16,6 +16,9 @@ func (SendCommandHandler) Handle(frame *CommandFrame) error {
 	}
 
 	cl := client.Clients.GetByName(content.target)
+	if cl == nil {
+		return errors.New("client not found")
+	}
 	return cl.Push(content.typ, content.msg)
 }
 
