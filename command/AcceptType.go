@@ -18,5 +18,14 @@ func (AcceptTypeCommandHandler) Handle(frame *CommandFrame) error {
 	if cl == nil {
 		return errors.New("client not found")
 	}
-	return cl.RegisterType(typ)
+	err = cl.RegisterType(typ)
+	ret := []byte{0}
+	if err != nil {
+		ret[0] = 1
+	}
+	sendErr := cl.SendToClient(ret)
+	if err == nil && sendErr != nil {
+		return sendErr
+	}
+	return err
 }
