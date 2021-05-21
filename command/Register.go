@@ -18,10 +18,16 @@ func (RegisterCommandHandler) Handle(frame *CommandFrame) error {
 	if err != nil {
 		return err
 	}
-	if err := cl.SendToClient([]byte{0}); err != nil {
-		return err
+	response := []byte{0}
+	err = client.Clients.Add(&cl)
+	if err != nil {
+		response[0] = 1
 	}
-	return client.Clients.Add(&cl) // client.Clients.Add(content.name, &cl)
+	errSend := cl.SendToClient(response)
+	if err == nil && errSend != nil {
+		return errSend
+	}
+	return err
 }
 
 type registerCommandContent struct {
