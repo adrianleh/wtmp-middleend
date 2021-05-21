@@ -120,8 +120,12 @@ func (frame *CommandFrame) Handle() error {
 	default:
 		handler = DefaultHandler{}
 	}
+	err := handler.Handle(frame)
+	if err == nil {
+		return nil
+	}
 	return &handlerError{
 		frame: frame,
-		cause: handler.Handle(frame),
+		cause: err,
 	}
 }
