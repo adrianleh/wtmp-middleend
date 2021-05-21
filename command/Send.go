@@ -9,7 +9,7 @@ import (
 
 type SendCommandHandler struct{}
 
-func (SendCommandHandler) Handle(frame CommandFrame) error {
+func (SendCommandHandler) Handle(frame *CommandFrame) error {
 	content, err := sendData(frame.Data)
 	if err != nil {
 		return err

@@ -3,17 +3,17 @@ package command
 import (
 	"encoding/binary"
 	"errors"
-
+	"github.com/adrianleh/WTMP-middleend/client"
 	"github.com/google/uuid"
 )
 
 type Handler interface {
-	Handle(frame CommandFrame) error
+	Handle(frame *CommandFrame) error
 }
 
 type DefaultHandler struct{}
 
-func (DefaultHandler) Handle(CommandFrame) error {
+func (DefaultHandler) Handle(*CommandFrame) error {
 	return errors.New("unsupported command")
 }
 
@@ -24,11 +24,18 @@ type CommandFrame struct {
 	Data      []byte
 }
 
-func ParseCommandFrame(rawFrame []byte) (CommandFrame, error) {
+func getClientId(rawFrame []byte) (uuid.UUID, error) {
+	if len(rawFrame) < 25 {
+		return uuid.Nil, errors.New("insufficient input length")
+	}
+	rawClientId := rawFrame[0:16]
+	return uuid.FromBytes(rawClientId)
+}
+
+func parseCommandFrame(rawFrame []byte) (CommandFrame, error) {
 	if len(rawFrame) < 25 {
 		return CommandFrame{}, errors.New("insufficient input length")
 	}
-	uuidRaw := rawFrame[0:16]
 	commandIdRaw := rawFrame[16]
 	sizeRaw := rawFrame[17:25]
 
@@ -45,13 +52,13 @@ func ParseCommandFrame(rawFrame []byte) (CommandFrame, error) {
 		data = rawFrame[25:]
 	}
 
-	commandId, err := uuid.FromBytes(uuidRaw)
+	clientId, err := getClientId(rawFrame)
 	if err != nil {
 		return CommandFrame{}, err
 	}
 
 	return CommandFrame{
-		ClientId:  commandId,
+		ClientId:  clientId,
 		CommandId: commandIdRaw,
 		Size:      size,
 		Data:      data,
@@ -67,7 +74,27 @@ const (
 	EmptyCommandId           = uint8(5)
 )
 
-func Handle(frame CommandFrame) error {
+func Submit(rawFrame []byte) error {
+	clientId, err := getClientId(rawFrame) // For faster locking
+	if err != nil {
+		return err
+	}
+	cl := client.Clients.GetById(clientId)
+	if cl != nil {
+		mutex := cl.GetCommandMutex()
+		mutex.Lock()
+		defer mutex.Unlock()
+	}
+
+	frame, err := parseCommandFrame(rawFrame)
+	if err != nil {
+		return err
+	}
+
+	return frame.Handle()
+}
+
+func (frame *CommandFrame) Handle() error {
 	var handler Handler
 	switch frame.CommandId {
 	case RegisterCommandId:

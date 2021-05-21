@@ -13,15 +13,16 @@ import (
 )
 
 type Client struct {
-	id                  uuid.UUID
-	socketPath          string
-	name                string
-	acceptedTypes       []types.Type
-	mqs                 map[types.Type]*messagequeue.MessageQueue
-	superTypeCache      map[types.Type]*types.Type
-	superTypeCacheMutex *sync.RWMutex
-	dataStructureMutex  *sync.Mutex
-	sock                net.Conn
+	id                    uuid.UUID
+	socketPath            string
+	name                  string
+	acceptedTypes         []types.Type
+	mqs                   map[types.Type]*messagequeue.MessageQueue
+	superTypeCache        map[types.Type]*types.Type
+	superTypeCacheMutex   *sync.RWMutex
+	dataStructureMutex    *sync.Mutex
+	sock                  net.Conn
+	inOrderExecutionMutex *sync.Mutex
 }
 
 func CreateClient(id uuid.UUID, socketPath string, name string) (Client, error) {
@@ -30,21 +31,26 @@ func CreateClient(id uuid.UUID, socketPath string, name string) (Client, error) 
 		return Client{}, err
 	}
 	return Client{
-		id:                  id,
-		socketPath:          socketPath,
-		name:                name,
-		acceptedTypes:       make([]types.Type, 0),
-		mqs:                 map[types.Type]*messagequeue.MessageQueue{},
-		superTypeCache:      map[types.Type]*types.Type{},
-		dataStructureMutex:  &sync.Mutex{},
-		superTypeCacheMutex: &sync.RWMutex{},
-		sock:                sock,
+		id:                    id,
+		socketPath:            socketPath,
+		name:                  name,
+		acceptedTypes:         make([]types.Type, 0),
+		mqs:                   map[types.Type]*messagequeue.MessageQueue{},
+		superTypeCache:        map[types.Type]*types.Type{},
+		dataStructureMutex:    &sync.Mutex{},
+		superTypeCacheMutex:   &sync.RWMutex{},
+		sock:                  sock,
+		inOrderExecutionMutex: &sync.Mutex{},
 	}, nil
 }
 
 func (cl *Client) SendToClient(data []byte) error {
 	_, err := io.Copy(cl.sock, bytes.NewReader(data))
 	return err
+}
+
+func (cl *Client) GetCommandMutex() *sync.Mutex {
+	return cl.inOrderExecutionMutex
 }
 
 func (cl *Client) GetId() uuid.UUID               { return cl.id }

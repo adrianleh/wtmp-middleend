@@ -7,7 +7,7 @@ import (
 
 type GetCommandHandler struct{}
 
-func (GetCommandHandler) Handle(frame CommandFrame) error {
+func (GetCommandHandler) Handle(frame *CommandFrame) error {
 	typ, err := types.Deserialize(frame.Data)
 	if err != nil {
 		return err

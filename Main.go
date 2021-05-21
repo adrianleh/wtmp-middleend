@@ -30,9 +30,7 @@ func server(conn net.Conn) {
 		log.Printf("Failed to read: %v", err)
 	}
 	data := buf.Bytes()
-	frame, err := command.ParseCommandFrame(data)
-	err = command.Handle(frame)
-	if err != nil {
+	if err := command.Submit(data); err != nil {
 		log.Printf("Command failed: %v", err)
 	}
 }
