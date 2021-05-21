@@ -3,6 +3,7 @@ package command
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"github.com/adrianleh/WTMP-middleend/client"
 	"github.com/google/uuid"
 )
@@ -94,6 +95,15 @@ func Submit(rawFrame []byte) error {
 	return frame.Handle()
 }
 
+type handlerError struct {
+	frame *CommandFrame
+	cause error
+}
+
+func (e *handlerError) Error() string {
+	return fmt.Sprintf("Command %d from client %s failed: %s", e.frame.CommandId, e.frame.ClientId, e.cause.Error())
+}
+
 func (frame *CommandFrame) Handle() error {
 	var handler Handler
 	switch frame.CommandId {
@@ -110,5 +120,8 @@ func (frame *CommandFrame) Handle() error {
 	default:
 		handler = DefaultHandler{}
 	}
-	return handler.Handle(frame)
+	return &handlerError{
+		frame: frame,
+		cause: handler.Handle(frame),
+	}
 }
