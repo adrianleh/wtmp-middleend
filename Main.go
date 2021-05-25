@@ -39,14 +39,16 @@ func server(conn net.Conn) {
 			continue
 		}
 		if len(cmdFrameHeader) != 25 {
-			log.Fatalf("Size mistmatch header %d!", len(cmdFrameHeader))
+			log.Printf("Size mistmatch header %d!", len(cmdFrameHeader))
+			continue
 		}
 		sizeRaw := cmdFrameHeader[16+1 : 25]
 		size := binary.BigEndian.Uint64(sizeRaw)
 		dataReader := bufio.NewReaderSize(io.LimitReader(conn, int64(size)), 512)
 		data, err := ioutil.ReadAll(dataReader)
 		if uint64(len(data)) != size {
-			log.Fatal("Size mistmatch data!")
+			log.Printf("Size mistmatch data!")
+			continue
 		}
 		if err != nil {
 			log.Println(err)
