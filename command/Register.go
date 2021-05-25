@@ -8,7 +8,7 @@ import (
 
 type RegisterCommandHandler struct{}
 
-func (RegisterCommandHandler) Handle(frame CommandFrame) error {
+func (RegisterCommandHandler) Handle(frame *CommandFrame) error {
 	content, err := parseData(frame.Data)
 	if err != nil {
 		return err
@@ -18,7 +18,16 @@ func (RegisterCommandHandler) Handle(frame CommandFrame) error {
 	if err != nil {
 		return err
 	}
-	return client.Clients.Add(&cl) // client.Clients.Add(content.name, &cl)
+	response := []byte{0}
+	err = client.Clients.Add(&cl)
+	if err != nil {
+		response[0] = 1
+	}
+	errSend := cl.SendToClient(response)
+	if err == nil && errSend != nil {
+		return errSend
+	}
+	return err
 }
 
 type registerCommandContent struct {

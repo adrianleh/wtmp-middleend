@@ -9,13 +9,16 @@ import (
 
 type SendCommandHandler struct{}
 
-func (SendCommandHandler) Handle(frame CommandFrame) error {
+func (SendCommandHandler) Handle(frame *CommandFrame) error {
 	content, err := sendData(frame.Data)
 	if err != nil {
 		return err
 	}
 
 	cl := client.Clients.GetByName(content.target)
+	if cl == nil {
+		return errors.New("client not found")
+	}
 	return cl.Push(content.typ, content.msg)
 }
 

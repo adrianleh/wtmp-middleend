@@ -13,15 +13,16 @@ import (
 )
 
 type Client struct {
-	id                  uuid.UUID
-	socketPath          string
-	name                string
-	acceptedTypes       []types.Type
-	mqs                 map[types.Type]*messagequeue.MessageQueue
-	superTypeCache      map[types.Type]*types.Type
-	superTypeCacheMutex *sync.RWMutex
-	dataStructureMutex  *sync.Mutex
-	sock                net.Conn
+	id                    uuid.UUID
+	socketPath            string
+	name                  string
+	acceptedTypes         []types.Type
+	mqs                   map[string]*messagequeue.MessageQueue
+	superTypeCache        map[string]*types.Type
+	superTypeCacheMutex   *sync.RWMutex
+	dataStructureMutex    *sync.Mutex
+	sock                  net.Conn
+	inOrderExecutionMutex *sync.Mutex
 }
 
 func CreateClient(id uuid.UUID, socketPath string, name string) (Client, error) {
@@ -30,21 +31,26 @@ func CreateClient(id uuid.UUID, socketPath string, name string) (Client, error) 
 		return Client{}, err
 	}
 	return Client{
-		id:                  id,
-		socketPath:          socketPath,
-		name:                name,
-		acceptedTypes:       make([]types.Type, 0),
-		mqs:                 map[types.Type]*messagequeue.MessageQueue{},
-		superTypeCache:      map[types.Type]*types.Type{},
-		dataStructureMutex:  &sync.Mutex{},
-		superTypeCacheMutex: &sync.RWMutex{},
-		sock:                sock,
+		id:                    id,
+		socketPath:            socketPath,
+		name:                  name,
+		acceptedTypes:         make([]types.Type, 0),
+		mqs:                   map[string]*messagequeue.MessageQueue{},
+		superTypeCache:        map[string]*types.Type{},
+		dataStructureMutex:    &sync.Mutex{},
+		superTypeCacheMutex:   &sync.RWMutex{},
+		sock:                  sock,
+		inOrderExecutionMutex: &sync.Mutex{},
 	}, nil
 }
 
 func (cl *Client) SendToClient(data []byte) error {
 	_, err := io.Copy(cl.sock, bytes.NewReader(data))
 	return err
+}
+
+func (cl *Client) GetCommandMutex() *sync.Mutex {
+	return cl.inOrderExecutionMutex
 }
 
 func (cl *Client) GetId() uuid.UUID               { return cl.id }
@@ -105,14 +111,14 @@ func (clients *ClientMap) Add(client *Client) error {
 var Clients = CreateClientMap()
 
 func (cl *Client) Pop(typ types.Type) ([]byte, error) {
-	if queue := cl.mqs[typ]; queue != nil {
+	if queue := cl.mqs[typ.Name()]; queue != nil {
 		return queue.Pop()
 	}
 	return nil, fmt.Errorf("no queue found for type \"%s\"", typ.Name())
 }
 
 func (cl *Client) Empty(typ types.Type) (bool, error) {
-	if queue := cl.mqs[typ]; queue != nil {
+	if queue := cl.mqs[typ.Name()]; queue != nil {
 		return queue.Empty(), nil
 	}
 	return false, errors.New("no queue exists for type")
@@ -123,7 +129,7 @@ func (cl *Client) PushToSuperType(typ types.Type, superType types.Type, data []b
 	if err != nil {
 		return err
 	}
-	queue := cl.mqs[superType]
+	queue := cl.mqs[superType.Name()]
 	return queue.Push(trimmedData)
 }
 
@@ -133,7 +139,7 @@ func (cl *Client) Push(typ types.Type, data []byte) error {
 	}
 	superTypes := typ.GetSuperTypes()
 	for _, superType := range superTypes {
-		if queue := cl.mqs[superType]; queue != nil {
+		if queue := cl.mqs[superType.Name()]; queue != nil {
 			cl.addToSuperTypeCache(typ, &superType)
 			return cl.PushToSuperType(typ, superType, data)
 		}
@@ -142,13 +148,13 @@ func (cl *Client) Push(typ types.Type, data []byte) error {
 }
 
 func (cl *Client) RegisterType(typ types.Type) error {
-	if cl.mqs[typ] != nil {
+	if cl.mqs[typ.Name()] != nil {
 		return errors.New("type already registered")
 	}
 	cl.dataStructureMutex.Lock()
 	cl.acceptedTypes = append(cl.acceptedTypes, typ)
 	queue := messagequeue.CreateMessageQueue(typ.Size())
-	cl.mqs[typ] = &queue
+	cl.mqs[typ.Name()] = &queue
 	cl.dataStructureMutex.Unlock()
 	cl.invalidateSuperTypeCache()
 	return nil
@@ -157,17 +163,17 @@ func (cl *Client) RegisterType(typ types.Type) error {
 func (cl *Client) addToSuperTypeCache(typ types.Type, super *types.Type) {
 	cl.superTypeCacheMutex.RLock() // We don't need a write lock here since overwriting is safe - as it would always be the same value
 	defer cl.superTypeCacheMutex.RUnlock()
-	cl.superTypeCache[typ] = super
+	cl.superTypeCache[typ.Name()] = super
 }
 
 func (cl *Client) getFromSuperTypeCache(typ types.Type) *types.Type {
 	cl.superTypeCacheMutex.RLock()
 	defer cl.superTypeCacheMutex.RUnlock()
-	return cl.superTypeCache[typ]
+	return cl.superTypeCache[typ.Name()]
 }
 
 func (cl *Client) invalidateSuperTypeCache() {
 	cl.superTypeCacheMutex.Lock() // Once this is executed future reads are blocked until we unlock
 	defer cl.superTypeCacheMutex.Unlock()
-	cl.superTypeCache = map[types.Type]*types.Type{}
+	cl.superTypeCache = map[string]*types.Type{}
 }

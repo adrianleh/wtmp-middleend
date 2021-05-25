@@ -201,7 +201,7 @@ func (typ StructType) Size() uint64 {
 	}
 	return size
 }
-func (typ StructType) IsSubtype(superTyp StructType) bool {
+func (typ StructType) IsSubtypeOf(superTyp StructType) bool {
 	if len(superTyp.Fields) >= len(typ.Fields) {
 		return false
 	}
@@ -231,18 +231,18 @@ func (typ StructType) GetSuperTypes() []Type {
 	return superTypes
 }
 
-func (typ StructType) TrimToSuperType(subType StructType, data []byte) ([]byte, error) {
+func (typ StructType) TrimToSuperType(superType StructType, data []byte) ([]byte, error) {
 	if uint64(len(data)) != typ.Size() {
 		return nil, errors.New("invalid data length")
 	}
-	if !subType.IsSubtype(typ) {
+	if !typ.IsSubtypeOf(superType) {
 		return nil, errors.New("not actually a subtype")
 	}
-	return data[:subType.Size()], nil
+	return data[:superType.Size()], nil
 }
 
 func Trim(typ Type, superType Type, data []byte) ([]byte, error) {
-	if typ == superType {
+	if typ.Name() == superType.Name() {
 		return data, nil
 	}
 	structType, isStruct := typ.(StructType)
@@ -425,23 +425,23 @@ func (typ ArrayType) Deserialize(data []byte) (Type, error) {
 
 func createSuperTypeCache() superTypeCache {
 	return superTypeCache{
-		types:      map[Type][]Type{},
+		types:      map[string][]Type{},
 		writeMutex: &sync.Mutex{},
 	}
 }
 
 type superTypeCache struct {
-	types      map[Type][]Type
+	types      map[string][]Type
 	writeMutex *sync.Mutex
 }
 
 func (cache *superTypeCache) get(typ Type) []Type {
-	return cache.types[typ]
+	return cache.types[typ.Name()]
 }
 func (cache *superTypeCache) put(typ Type, superTypes []Type) {
 	cache.writeMutex.Lock()
 	defer cache.writeMutex.Unlock()
 	if cache.get(typ) == nil {
-		cache.types[typ] = superTypes
+		cache.types[typ.Name()] = superTypes
 	}
 }
