@@ -1,8 +1,10 @@
 package main
 
 import (
-	"bytes"
+	"encoding/binary"
 	"github.com/adrianleh/WTMP-middleend/command"
+	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -25,13 +27,27 @@ func main() {
 
 func server(conn net.Conn) {
 	defer conn.Close()
-	buf := new(bytes.Buffer)
-	if _, err := buf.ReadFrom(conn); err != nil {
-		log.Printf("Failed to read: %v", err)
-	}
-	data := buf.Bytes()
-	if err := command.Submit(data); err != nil {
-		log.Printf("Command failed: %v", err)
+	for {
+		headerReader := io.LimitReader(conn, 25)
+		cmdFrameHeader, err := ioutil.ReadAll(headerReader)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		sizeRaw := cmdFrameHeader[16+1 : 25]
+		size := binary.BigEndian.Uint64(sizeRaw)
+		dataReader := io.LimitReader(conn, int64(size))
+		data, err := ioutil.ReadAll(dataReader)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		cmdFrame := append(cmdFrameHeader, data...)
+		err = command.Submit(cmdFrame)
+		if err != nil {
+			log.Printf("Command failed: %v", err)
+			continue
+		}
 	}
 }
 
