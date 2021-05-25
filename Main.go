@@ -1,8 +1,11 @@
 package main
 
 import (
-	"bytes"
+	"bufio"
+	"encoding/binary"
 	"github.com/adrianleh/WTMP-middleend/command"
+	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -25,13 +28,35 @@ func main() {
 
 func server(conn net.Conn) {
 	defer conn.Close()
-	buf := new(bytes.Buffer)
-	if _, err := buf.ReadFrom(conn); err != nil {
-		log.Printf("Failed to read: %v", err)
-	}
-	data := buf.Bytes()
-	if err := command.Submit(data); err != nil {
-		log.Printf("Command failed: %v", err)
+	for {
+		headerReader := io.LimitReader(conn, 25)
+		cmdFrameHeader, err := ioutil.ReadAll(headerReader)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		if len(cmdFrameHeader) == 0 {
+			continue
+		}
+		if len(cmdFrameHeader) != 25 {
+			log.Fatalf("Size mistmatch header %d!", len(cmdFrameHeader))
+		}
+		sizeRaw := cmdFrameHeader[16+1 : 25]
+		size := binary.BigEndian.Uint64(sizeRaw)
+		dataReader := bufio.NewReaderSize(io.LimitReader(conn, int64(size)), 512)
+		data, err := ioutil.ReadAll(dataReader)
+		if uint64(len(data)) != size {
+			log.Fatal("Size mistmatch data!")
+		}
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		cmdFrame := append(cmdFrameHeader, data...)
+		err = command.Submit(cmdFrame)
+		if err != nil {
+			log.Printf("Command failed: %v", err)
+		}
 	}
 }
 
@@ -43,7 +68,6 @@ func accept(listener net.Listener) {
 		}
 		go server(fd)
 	}
-
 }
 
 func startServer() (net.Listener, error) {
