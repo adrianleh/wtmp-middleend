@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/adrianleh/WTMP-middleend/client"
 	"github.com/google/uuid"
-	"log"
 )
 
 type Handler interface {
@@ -106,7 +105,7 @@ func (e *handlerError) Error() string {
 }
 
 func (frame *CommandFrame) Handle() error {
-	log.Printf("Client %s issued command %d", frame.ClientId.String(), frame.CommandId)
+	//log.Printf("Client %s issued command %d", frame.ClientId.String(), frame.CommandId)
 	var handler Handler
 	switch frame.CommandId {
 	case RegisterCommandId:
